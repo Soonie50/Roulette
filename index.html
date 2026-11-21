@@ -1,0 +1,206 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>가위바위보 룰렛</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      display: grid;
+      place-items: center;
+      padding: 20px 12px;
+      background: radial-gradient(circle, #f5d8f5 2px, transparent 3px) 0 0 / 26px 26px, #fff3fb;
+      color: #492762;
+      font-family: system-ui, sans-serif;
+    }
+    main {
+      width: min(100%, 640px);
+      padding: clamp(16px, 4vw, 30px);
+      text-align: center;
+      background: #fffdfb;
+      border: 3px solid #f3c9e7;
+      border-radius: 36px;
+      box-shadow: 0 10px #efd8f6;
+    }
+    h1 {
+      margin: 0;
+      font-size: clamp(27px, 6vw, 48px);
+      font-weight: 900;
+      word-break: keep-all;
+    }
+    .sparkle { color: #db4c91; font-size: 0.65em; }
+    #result {
+      display: grid;
+      place-items: center;
+      margin: 6px 0 18px;
+      min-height: clamp(100px, 25vw, 150px);
+      font-size: clamp(30px, 7vw, 56px);
+      font-weight: 900;
+      line-height: 1.15;
+    }
+    #result .gesture {
+      font-size: clamp(80px, 22vw, 132px);
+      line-height: 1;
+      filter: drop-shadow(0 5px 0 #f3d6e9);
+    }
+    .roulette {
+      position: relative;
+      width: min(100%, 480px);
+      aspect-ratio: 1;
+      margin: 0 auto 28px;
+      container-type: inline-size;
+    }
+    #wheel {
+      position: absolute;
+      inset: 0;
+      border: 7px solid #fff;
+      border-radius: 50%;
+      background: conic-gradient(
+        from -60deg,
+        #ffe185 0deg 120deg,
+        #a5eed6 120deg 240deg,
+        #ffbcd9 240deg 360deg
+      );
+      box-shadow: 0 0 0 3px #d3a7e4, 0 9px 0 3px #ecd7f5;
+    }
+    .label {
+      position: absolute;
+      display: grid;
+      place-items: center;
+      width: 34%;
+      aspect-ratio: 1;
+      transform: translate(-50%, -50%);
+      border: 2px solid #ffffffc9;
+      border-radius: 50%;
+      background: #ffffff71;
+      font-size: clamp(44px, 24vw, 116px);
+      font-size: clamp(36px, 24cqw, 116px);
+      line-height: 1;
+      white-space: nowrap;
+    }
+    .gesture { font-family: "Segoe UI Emoji", "Apple Color Emoji", "Noto Color Emoji", sans-serif; }
+    .scissors { top: 20%; left: 50%; }
+    .rock { top: 65%; left: 76%; }
+    .paper { top: 65%; left: 24%; }
+    .pointer {
+      position: absolute;
+      z-index: 1;
+      top: -11px;
+      left: 50%;
+      width: 39px;
+      height: 35px;
+      transform: translateX(-50%);
+      background: #a22772;
+      clip-path: polygon(0 0, 100% 0, 50% 100%);
+    }
+    .buttons {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr));
+      gap: 12px;
+    }
+    button {
+      min-height: 76px;
+      padding: 12px;
+      border: 2px solid #b04f88;
+      border-radius: 999px;
+      background: #ffc0df;
+      color: #55234a;
+      box-shadow: 0 5px #e39ac5;
+      font: inherit;
+      font-size: clamp(28px, 6vw, 38px);
+      font-weight: 800;
+      cursor: pointer;
+    }
+    #again { background: #e8d4ff; border-color: #9264b6; box-shadow: 0 5px #ccb1e6; }
+    button:focus-visible { outline: 4px solid #642d85; outline-offset: 4px; }
+    button[aria-disabled="true"] { opacity: 0.65; cursor: default; }
+  </style>
+</head>
+<body>
+  <main>
+    <h1><span class="sparkle" aria-hidden="true">✦</span> 가위바위보 룰렛 <span class="sparkle" aria-hidden="true">✦</span></h1>
+    <p id="result" role="status" aria-atomic="true">준비!</p>
+    <div class="roulette" aria-hidden="true">
+      <div id="wheel">
+        <span class="label gesture scissors">✌️</span>
+        <span class="label gesture rock">✊</span>
+        <span class="label gesture paper">✋</span>
+      </div>
+      <div class="pointer"></div>
+    </div>
+    <div class="buttons">
+      <button id="spin" type="button">돌리기</button>
+      <button id="again" type="button" aria-disabled="true">다시 돌리기</button>
+    </div>
+  </main>
+  <script>
+    const choices = [
+      { name: '가위', picture: '✌️' },
+      { name: '바위', picture: '✊' },
+      { name: '보', picture: '✋' }
+    ];
+    const wheel = document.querySelector('#wheel');
+    const result = document.querySelector('#result');
+    const spinButton = document.querySelector('#spin');
+    const againButton = document.querySelector('#again');
+    const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)');
+    let angle = 0;
+    let spinning = false;
+    let hasResult = false;
+
+    function normalize(degrees) {
+      return ((degrees % 360) + 360) % 360;
+    }
+
+    function spin() {
+      if (spinning) return;
+      spinning = true;
+      spinButton.setAttribute('aria-disabled', 'true');
+      againButton.setAttribute('aria-disabled', 'true');
+      result.textContent = '돌리는 중…';
+
+      const choice = Math.floor(Math.random() * choices.length);
+      const offset = Math.random() * 76 - 38;
+      const target = normalize(-(choice * 120 + offset));
+      const start = angle;
+      const distance = 5 * 360 + normalize(target - start);
+      const duration = reducedMotion.matches ? 0 : 3600;
+      const startedAt = performance.now();
+
+      function animate(now) {
+        const progress = duration === 0 ? 1 : Math.min((now - startedAt) / duration, 1);
+        const eased = 1 - (1 - progress) ** 3;
+
+        if (progress < 1) {
+          wheel.style.transform = 'rotate(' + (start + distance * eased) + 'deg)';
+          requestAnimationFrame(animate);
+          return;
+        }
+
+        angle = target;
+        wheel.style.transform = 'rotate(' + angle + 'deg)';
+        const picture = document.createElement('span');
+        picture.className = 'gesture';
+        picture.setAttribute('role', 'img');
+        picture.setAttribute('aria-label', choices[choice].name);
+        picture.textContent = choices[choice].picture;
+        result.replaceChildren(picture);
+        spinning = false;
+        hasResult = true;
+        spinButton.removeAttribute('aria-disabled');
+        againButton.removeAttribute('aria-disabled');
+      }
+
+      requestAnimationFrame(animate);
+    }
+
+    spinButton.addEventListener('click', spin);
+    againButton.addEventListener('click', () => {
+      if (hasResult) spin();
+    });
+  </script>
+</body>
+</html>
